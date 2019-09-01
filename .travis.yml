@@ -1,0 +1,54 @@
+language: julia
+os:
+  - linux
+julia:
+  - 1.0
+notifications:
+  email: false
+git:
+  depth: 99999999
+cache:
+  timeout: 1000
+  directories:
+    - downloads
+env:
+  global:
+    - BINARYBUILDER_DOWNLOADS_CACHE=downloads
+    - BINARYBUILDER_AUTOMATIC_APPLE=true
+  # Our build takes too long for one job, so split targets across multiple jobs
+  # triplets come from
+  # using BinaryBuilder; triplet.(supported_platforms())
+  matrix:
+    - TARGET=x86_64-linux-gnu
+    - TARGET=x86_64-apple-darwin14
+    - TARGET=i686-w64-mingw32-gcc7
+    - TARGET=x86_64-w64-mingw32-gcc7
+sudo: required
+
+jobs:
+  include:
+    - stage: regenerate build.jl
+      script: julia --color=yes build_tarballs.jl --only-buildjl
+      if: tag IS present
+
+# Before anything else, get the latest versions of things
+before_script:
+  - julia --color=yes -e 'using Pkg;
+      Pkg.add(PackageSpec(name="BinaryProvider", rev="master"));
+      Pkg.add(PackageSpec(name="BinaryBuilder", rev="master"))'
+
+script:
+  - julia --color=yes build_tarballs.jl $TARGET
+
+deploy:
+    provider: releases
+    api_key:
+        # Note; this api_key is only valid for JuliaGeo/GDALBuilder; you need
+        # to make your own: https://docs.travis-ci.com/user/deployment/releases/
+        secure: T6Rd+QUWk5ku7lTrKPeh/0pYwQ9isWSQHL6M8uGG+16hfIoOMVCofNGIzwUwM/AIanV6WXcR/vEaF6BSlXRG1W/36pZ3TDhfgT0XDsO6KDwit9nSRohNj8zE5iyW+2uwsr3BKy0K62D4iiPJXsAS58EOo9NlPP9uzVIGzQUzFwiRAHC5apUh4L70WDrHBvImVE8BewPUroZGnLw5UQvT1k7F4HmcDG3MncyK/E4miNEr4SymQOx6L6fm2/vLRn9Y+fxNn43VmlbvVfozIAALrQgNJu63VQgWCAIx/gp2Kp7wCqbTpX3ujmFp9s57cpGGvUlbu5n64AyVpMteqlxMpCmyeCKOVimrU+DqMLLJ0VGxJNacOkAxR3NZUGKvgWOk9fDFD+ADLIoN0WIuyVFVILXUocBqdnCbUaAHf9huEWUAqJwX5V+cCCg4fOfffzouXvlC9Xbagmp4KFS9Q9p/uUNFi0iLvN1cOF8OBgtx2DeeeFqpR94eFFcibJL4JL8yK+jiYSh4ukoTSqBkBfGNVBnDqT2L4Gm0kqhx3bJp1IN0FfhKrELZ+/rPlWwmP7yjPDoJOGueDe9tbxhgKB7I4l5QhQwCz5ax5xU3LMm48w9Pm0e8IePuBhHOHB/UHgyuZpSFg/0mJHiMvdHI8ffEcCQ6CvSxZh3XzkcBv/3Rj0Q=
+    file_glob: true
+    file: products/*
+    skip_cleanup: true
+    on:
+        repo: evetion/MDALBuilder
+        tags: true
